@@ -64,3 +64,65 @@ def redact_page(data: bytes, page_index: int, rects: list[list[float]]) -> bytes
     out = doc.tobytes(garbage=4, deflate=True)
     doc.close()
     return out
+
+
+def _font_for_name(name: str) -> str:
+    """Map common PDF font names to PyMuPDF built-ins when the embedded font cannot be reused."""
+    n = (name or "").lower()
+    if "courier" in n or "mono" in n:
+        return "cour"
+    if "times" in n or "serif" in n or "roman" in n:
+        return "tiro"
+    return "helv"
+
+
+def _rgb_from_int(value: int) -> tuple[float, float, float]:
+    return ((value >> 16 & 255) / 255, (value >> 8 & 255) / 255, (value & 255) / 255)
+
+
+def replace_text_span(
+    data: bytes,
+    page_index: int,
+    bbox: list[float],
+    text: str,
+    font: str = "",
+    size: float = 11,
+    color: int = 0,
+) -> bytes:
+    """Replace one extracted text span without rasterizing the page.
+
+    The original span is removed with a real PDF redaction and replacement text is
+    inserted in the same document-space rectangle. Other page objects remain
+    vector/text based. Font reuse is attempted through a conservative built-in
+    mapping because an extracted PDF font name is not necessarily an installable
+    font identifier.
+    """
+    if len(bbox) != 4:
+        raise ValueError("bbox must contain four coordinates")
+    doc = open_pdf(data)
+    if not 0 <= page_index < len(doc):
+        doc.close()
+        raise ValueError("Page index out of range")
+    rect = fitz.Rect(*bbox)
+    if rect.is_empty or rect.width <= 0 or rect.height <= 0:
+        doc.close()
+        raise ValueError("Invalid text span rectangle")
+
+    page = doc[page_index]
+    page.add_redact_annot(rect, fill=(1, 1, 1))
+    page.apply_redactions()
+
+    if text:
+        page.insert_textbox(
+            rect,
+            text,
+            fontname=_font_for_name(font),
+            fontsize=max(1, float(size)),
+            color=_rgb_from_int(int(color)),
+            align=fitz.TEXT_ALIGN_LEFT,
+            overlay=True,
+        )
+
+    out = doc.tobytes(garbage=4, deflate=True)
+    doc.close()
+    return out

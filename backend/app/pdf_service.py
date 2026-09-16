@@ -67,7 +67,7 @@ def redact_page(data: bytes, page_index: int, rects: list[list[float]]) -> bytes
 
 
 def _font_for_name(name: str) -> str:
-    """Map common PDF font names to PyMuPDF built-ins when the embedded font cannot be reused."""
+    """Map common PDF font names to PyMuPDF built-ins when needed."""
     n = (name or "").lower()
     if "courier" in n or "mono" in n:
         return "cour"
@@ -77,6 +77,7 @@ def _font_for_name(name: str) -> str:
 
 
 def _rgb_from_int(value: int) -> tuple[float, float, float]:
+    value = int(value) & 0xFFFFFF
     return ((value >> 16 & 255) / 255, (value >> 8 & 255) / 255, (value & 255) / 255)
 
 
@@ -89,14 +90,7 @@ def replace_text_span(
     size: float = 11,
     color: int = 0,
 ) -> bytes:
-    """Replace one extracted text span without rasterizing the page.
-
-    The original span is removed with a real PDF redaction and replacement text is
-    inserted in the same document-space rectangle. Other page objects remain
-    vector/text based. Font reuse is attempted through a conservative built-in
-    mapping because an extracted PDF font name is not necessarily an installable
-    font identifier.
-    """
+    """Replace one text span while preserving unrelated page graphics/images."""
     if len(bbox) != 4:
         raise ValueError("bbox must contain four coordinates")
     doc = open_pdf(data)
@@ -109,8 +103,8 @@ def replace_text_span(
         raise ValueError("Invalid text span rectangle")
 
     page = doc[page_index]
-    page.add_redact_annot(rect, fill=(1, 1, 1))
-    page.apply_redactions()
+    page.add_redact_annot(rect, fill=None)
+    page.apply_redactions(images=0, graphics=0, text=0)
 
     if text:
         page.insert_textbox(

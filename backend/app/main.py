@@ -2,9 +2,9 @@ from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from pydantic import BaseModel
-from .pdf_service import extract_text_spans, remove_pages, rotate_page, redact_page
+from .pdf_service import extract_text_spans, remove_pages, rotate_page, redact_page, replace_text_span
 
-app = FastAPI(title="PDF Editor API", version="0.2.0")
+app = FastAPI(title="PDF Editor API", version="0.3.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 class PageRotation(BaseModel):
@@ -18,9 +18,17 @@ class RedactionRequest(BaseModel):
 class DeletePagesRequest(BaseModel):
     pageIndexes: list[int]
 
+class TextReplacementRequest(BaseModel):
+    pageIndex: int
+    bbox: list[float]
+    text: str
+    font: str = ""
+    size: float = 11
+    color: int = 0
+
 @app.get("/api/health")
 def health():
-    return {"status": "ok", "service": "pdf-editor", "version": "0.2.0"}
+    return {"status": "ok", "service": "pdf-editor", "version": "0.3.0"}
 
 async def read_pdf(file: UploadFile) -> bytes:
     if not file.filename or not file.filename.lower().endswith(".pdf"):
@@ -28,6 +36,8 @@ async def read_pdf(file: UploadFile) -> bytes:
     data = await file.read()
     if not data.startswith(b"%PDF"):
         raise HTTPException(400, "Invalid PDF file")
+    if len(data) > 100 * 1024 * 1024:
+        raise HTTPException(413, "PDF is larger than the 100 MB local editing limit")
     return data
 
 @app.post("/api/pdf/text-spans")
@@ -64,3 +74,22 @@ async def redact(request: RedactionRequest, file: UploadFile = File(...)):
         return Response(out, media_type="application/pdf")
     except Exception as exc:
         raise HTTPException(422, f"Could not apply redaction: {exc}")
+
+@app.post("/api/pdf/replace-text")
+async def replace_text(request: TextReplacementRequest, file: UploadFile = File(...)):
+    data = await read_pdf(file)
+    try:
+        out = replace_text_span(
+            data,
+            request.pageIndex,
+            request.bbox,
+            request.text,
+            request.font,
+            request.size,
+            request.color,
+        )
+        return Response(out, media_type="application/pdf")
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    except Exception as exc:
+        raise HTTPException(422, f"Could not replace text: {exc}")

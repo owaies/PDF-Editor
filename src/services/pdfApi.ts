@@ -20,7 +20,9 @@ export type TextReplacementEdit = {
   color?: number;
 };
 
-const API_BASE = (import.meta.env.VITE_PDF_API_URL || 'http://localhost:8000').replace(/\/$/, '');
+// Empty means same-origin. This makes the production Vercel deployment use its
+// own /api routes while still allowing VITE_PDF_API_URL for a separate backend.
+const API_BASE = (import.meta.env.VITE_PDF_API_URL || '').replace(/\/$/, '');
 
 async function postMultipart(path: string, file: Blob, request?: unknown): Promise<Response> {
   const form = new FormData();

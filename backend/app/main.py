@@ -5,8 +5,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from pydantic import BaseModel, ValidationError
 from .pdf_service import extract_text_spans, remove_pages, rotate_page, redact_page, replace_text_span
+from .text_replace import replace_text_spans
 
-app = FastAPI(title="PDF Editor API", version="0.3.1")
+app = FastAPI(title="PDF Editor API", version="0.4.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 class PageRotation(BaseModel):
@@ -28,9 +29,21 @@ class TextReplacementRequest(BaseModel):
     size: float = 11
     color: int = 0
 
+class TextReplacementEdit(BaseModel):
+    pageIndex: int
+    sourceBBox: list[float]
+    targetBBox: list[float] | None = None
+    text: str = ""
+    font: str = ""
+    size: float = 11
+    color: int = 0
+
+class BatchTextReplacementRequest(BaseModel):
+    edits: list[TextReplacementEdit]
+
 @app.get("/api/health")
 def health():
-    return {"status": "ok", "service": "pdf-editor", "version": "0.3.1"}
+    return {"status": "ok", "service": "pdf-editor", "version": "0.4.0"}
 
 async def read_pdf(file: UploadFile) -> bytes:
     if not file.filename or not file.filename.lower().endswith(".pdf"):
@@ -91,17 +104,25 @@ async def replace_text(request: str = Form(...), file: UploadFile = File(...)):
     data = await read_pdf(file)
     parsed = parse_request(request, TextReplacementRequest)
     try:
-        out = replace_text_span(
-            data,
-            parsed.pageIndex,
-            parsed.bbox,
-            parsed.text,
-            parsed.font,
-            parsed.size,
-            parsed.color,
-        )
+        out = replace_text_span(data, parsed.pageIndex, parsed.bbox, parsed.text, parsed.font, parsed.size, parsed.color)
         return Response(out, media_type="application/pdf")
     except ValueError as exc:
         raise HTTPException(400, str(exc))
     except Exception as exc:
         raise HTTPException(422, f"Could not replace text: {exc}")
+
+@app.post("/api/pdf/replace-text-spans")
+async def replace_text_batch(request: str = Form(...), file: UploadFile = File(...)):
+    data = await read_pdf(file)
+    parsed = parse_request(request, BatchTextReplacementRequest)
+    try:
+        edits = [edit.model_dump() for edit in parsed.edits]
+        for edit in edits:
+            if edit.get("targetBBox") is None:
+                edit["targetBBox"] = edit["sourceBBox"]
+        out = replace_text_spans(data, edits)
+        return Response(out, media_type="application/pdf")
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    except Exception as exc:
+        raise HTTPException(422, f"Could not replace PDF text spans: {exc}")

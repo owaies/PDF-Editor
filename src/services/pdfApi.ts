@@ -10,6 +10,16 @@ export type TextSpan = {
   origin: [number, number];
 };
 
+export type TextReplacementEdit = {
+  pageIndex: number;
+  sourceBBox: [number, number, number, number];
+  targetBBox?: [number, number, number, number];
+  text: string;
+  font?: string;
+  size?: number;
+  color?: number;
+};
+
 const API_BASE = (import.meta.env.VITE_PDF_API_URL || 'http://localhost:8000').replace(/\/$/, '');
 
 async function postMultipart(path: string, file: Blob, request?: unknown): Promise<Response> {
@@ -27,15 +37,20 @@ export async function inspectTextSpans(file: Blob): Promise<TextSpan[]> {
   return data.spans;
 }
 
-export async function replaceTextSpan(file: Blob, request: {
-  pageIndex: number;
-  bbox: [number, number, number, number];
-  text: string;
-  font?: string;
-  size?: number;
-  color?: number;
-}): Promise<Blob> {
-  return (await postMultipart('/api/pdf/replace-text', file, request)).blob();
+export async function replaceTextSpans(file: Blob, edits: TextReplacementEdit[]): Promise<Blob> {
+  if (!edits.length) return file;
+  return (await postMultipart('/api/pdf/replace-text-spans', file, { edits })).blob();
+}
+
+export async function replaceTextSpan(file: Blob, request: TextReplacementEdit): Promise<Blob> {
+  return (await postMultipart('/api/pdf/replace-text', file, {
+    pageIndex: request.pageIndex,
+    bbox: request.sourceBBox,
+    text: request.text,
+    font: request.font,
+    size: request.size,
+    color: request.color,
+  })).blob();
 }
 
 export async function deletePages(file: Blob, pageIndexes: number[]): Promise<Blob> {

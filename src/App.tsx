@@ -10,7 +10,7 @@ GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', i
 type Tool = 'select' | 'text' | 'highlight' | 'draw' | 'shape' | 'image';
 type EditorObject = TextObject | HighlightObject | ShapeObject | ImageObject;
 interface BaseObject { id:string; pageIndex:number; x:number; y:number; width:number; height:number; rotation:number }
-interface TextObject extends BaseObject { type:'text'; text:string; fontSize:number; color:string; sourceSpanId?:string; originalText?:string; sourceFont?:string; sourceBBox?:[number,number,number,number] }
+interface TextObject extends BaseObject { type:'text'; text:string; fontSize:number; color:string; sourceSpanId?:string; originalText?:string; sourceFont?:string; sourceFontSize?:number; sourceColor?:string; sourceBBox?:[number,number,number,number] }
 interface HighlightObject extends BaseObject { type:'highlight'; color:string; opacity:number }
 interface ShapeObject extends BaseObject { type:'shape'; stroke:string; fill:string; strokeWidth:number }
 interface ImageObject extends BaseObject { type:'image'; dataUrl:string }
@@ -54,13 +54,18 @@ export default function App(){
     setStatus('Preparing PDF…');
     try{
       const bytes=(window as WindowPdf).__pdfBytes;if(!bytes){setStatus('Please reopen the PDF before exporting.');return}
-      const sourceTextEdits=objects.filter((o):o is TextObject=>o.type==='text'&&!!o.sourceSpanId&&!!o.sourceBBox&&o.originalText!==o.text);
+      const sourceTextEdits=objects.filter((o):o is TextObject=>o.type==='text'&&!!o.sourceSpanId&&!!o.sourceBBox&&(
+        o.originalText!==o.text ||
+        o.x!==o.sourceBBox[0] || o.y!==o.sourceBBox[1] ||
+        o.width!==(o.sourceBBox[2]-o.sourceBBox[0]) || o.height!==(o.sourceBBox[3]-o.sourceBBox[1]) ||
+        o.fontSize!==(o.sourceFontSize??o.fontSize) || o.color!==(o.sourceColor??o.color)
+      ));
       let workingBytes=bytes;
       if(sourceTextEdits.length){
         if(!backendReady){setStatus('Start the local PDF backend to export existing-text edits accurately.');return}
         setStatus(`Applying ${sourceTextEdits.length} text edit${sourceTextEdits.length===1?'':'s'}…`);
         const edits:TextReplacementEdit[]=sourceTextEdits.map(o=>({pageIndex:o.pageIndex,sourceBBox:o.sourceBBox!,targetBBox:[o.x,o.y,o.x+o.width,o.y+o.height],text:o.text,font:o.sourceFont||'',size:o.fontSize,color:hexToInt(o.color)}));
-        workingBytes=new Uint8Array(await (await replaceTextSpans(new Blob([bytes],{type:'application/pdf'}),edits)).arrayBuffer());
+        const result=await replaceTextSpans(new Blob([bytes],{type:'application/pdf'}),edits);workingBytes=new Uint8Array(await result.arrayBuffer());
       }
       const doc=await PDFDocument.load(workingBytes);const font=await doc.embedFont(StandardFonts.Helvetica);
       for(const o of objects){
@@ -80,7 +85,7 @@ export default function App(){
   useEffect(()=>{if(!pdf)return;const obs=new IntersectionObserver(es=>{const v=es.filter(e=>e.isIntersecting).sort((a,b)=>b.intersectionRatio-a.intersectionRatio)[0];if(v)setCurrentPage(Number((v.target as HTMLElement).dataset.page))},{root:scrollerRef.current,threshold:[.25,.6,.9]});pageRefs.current.forEach(e=>e&&obs.observe(e));return()=>obs.disconnect()},[pdf,pages.length,zoom]);
 
   const addImage=(file:File)=>{const reader=new FileReader();reader.onload=()=>{snapshot();add({id:makeId(),type:'image',pageIndex:currentPage,x:50,y:50,width:220,height:160,rotation:0,dataUrl:String(reader.result)})};reader.readAsDataURL(file)};
-  const addExistingText=(span:TextSpan)=>{const existing=objects.find(o=>o.type==='text'&&o.sourceSpanId===span.id);if(existing){select(existing.id);return}snapshot();add({id:makeId(),type:'text',pageIndex:span.pageIndex,x:span.bbox[0],y:span.bbox[1],width:Math.max(12,span.bbox[2]-span.bbox[0]),height:Math.max(12,span.bbox[3]-span.bbox[1]),rotation:0,text:span.text,fontSize:span.size||11,color:intColorToHex(span.color),sourceSpanId:span.id,originalText:span.text,sourceFont:span.font,sourceBBox:span.bbox})};
+  const addExistingText=(span:TextSpan)=>{const existing=objects.find(o=>o.type==='text'&&o.sourceSpanId===span.id);if(existing){select(existing.id);return}snapshot();add({id:makeId(),type:'text',pageIndex:span.pageIndex,x:span.bbox[0],y:span.bbox[1],width:Math.max(12,span.bbox[2]-span.bbox[0]),height:Math.max(12,span.bbox[3]-span.bbox[1]),rotation:0,text:span.text,fontSize:span.size||11,color:intColorToHex(span.color),sourceSpanId:span.id,originalText:span.text,sourceFont:span.font,sourceFontSize:span.size||11,sourceColor:intColorToHex(span.color),sourceBBox:span.bbox})};
   const zoomBy=(d:number)=>setZoom(z=>Math.min(4,Math.max(.25,Math.round((z+d)*100)/100)));
 
   return <div className={dark?'app dark':'app'}>

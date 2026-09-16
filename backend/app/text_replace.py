@@ -91,10 +91,10 @@ def _insert_fitted(page: fitz.Page, rect: fitz.Rect, text: str, fontname: str, s
 def replace_text_spans(data: bytes, edits: list[dict]) -> bytes:
     """Apply multiple source-span replacements without rasterizing the PDF.
 
-    Source rectangles are removed as real PDF content. Replacement text is added
-    as vector text, with the original embedded font program reused whenever
-    PyMuPDF can extract it. The source and target rectangles may differ, allowing
-    an existing text object to be moved or resized before export.
+    Only the source text is removed. Existing images and vector graphics are kept,
+    so a replacement does not unnecessarily turn a page into a white rectangle.
+    The source and target rectangles may differ, allowing an existing text object
+    to be moved or resized before export.
     """
     if not edits:
         return data
@@ -121,9 +121,11 @@ def replace_text_spans(data: bytes, edits: list[dict]) -> bytes:
             captured_fonts = _capture_font_buffers(page, doc)
             font_aliases: dict[str, str] = {}
 
+            # Transparent redaction removes overlapping text while preserving
+            # underlying page graphics/images. The replacement is drawn afterwards.
             for edit in page_edits:
-                page.add_redact_annot(edit["sourceRect"], fill=(1, 1, 1))
-            page.apply_redactions()
+                page.add_redact_annot(edit["sourceRect"], fill=None)
+            page.apply_redactions(images=0, graphics=0, text=0)
 
             for edit in page_edits:
                 font_name = str(edit.get("font") or "")

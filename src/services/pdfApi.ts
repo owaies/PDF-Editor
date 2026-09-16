@@ -12,22 +12,17 @@ export type TextSpan = {
 
 const API_BASE = (import.meta.env.VITE_PDF_API_URL || 'http://localhost:8000').replace(/\/$/, '');
 
-async function pdfRequest(path: string, file: Blob, payload?: unknown): Promise<Blob> {
+async function postMultipart(path: string, file: Blob, request?: unknown): Promise<Response> {
   const form = new FormData();
   form.append('file', file, 'document.pdf');
-  const response = await fetch(`${API_BASE}${path}${payload ? `?request=${encodeURIComponent(JSON.stringify(payload))}` : ''}`, {
-    method: 'POST',
-    body: payload ? (() => { form.append('request', JSON.stringify(payload)); return form; })() : form,
-  });
+  if (request !== undefined) form.append('request', JSON.stringify(request));
+  const response = await fetch(`${API_BASE}${path}`, { method: 'POST', body: form });
   if (!response.ok) throw new Error((await response.text()) || `PDF API error ${response.status}`);
-  return response.blob();
+  return response;
 }
 
 export async function inspectTextSpans(file: Blob): Promise<TextSpan[]> {
-  const form = new FormData();
-  form.append('file', file, 'document.pdf');
-  const response = await fetch(`${API_BASE}/api/pdf/text-spans`, { method: 'POST', body: form });
-  if (!response.ok) throw new Error((await response.text()) || `PDF API error ${response.status}`);
+  const response = await postMultipart('/api/pdf/text-spans', file);
   const data = await response.json() as { spans: TextSpan[] };
   return data.spans;
 }
@@ -40,37 +35,17 @@ export async function replaceTextSpan(file: Blob, request: {
   size?: number;
   color?: number;
 }): Promise<Blob> {
-  const form = new FormData();
-  form.append('file', file, 'document.pdf');
-  form.append('request', JSON.stringify(request));
-  const response = await fetch(`${API_BASE}/api/pdf/replace-text`, { method: 'POST', body: form });
-  if (!response.ok) throw new Error((await response.text()) || `PDF API error ${response.status}`);
-  return response.blob();
+  return (await postMultipart('/api/pdf/replace-text', file, request)).blob();
 }
 
 export async function deletePages(file: Blob, pageIndexes: number[]): Promise<Blob> {
-  const form = new FormData();
-  form.append('file', file, 'document.pdf');
-  form.append('request', JSON.stringify({ pageIndexes }));
-  const response = await fetch(`${API_BASE}/api/pdf/delete-pages`, { method: 'POST', body: form });
-  if (!response.ok) throw new Error((await response.text()) || `PDF API error ${response.status}`);
-  return response.blob();
+  return (await postMultipart('/api/pdf/delete-pages', file, { pageIndexes })).blob();
 }
 
 export async function rotatePage(file: Blob, pageIndex: number, delta = 90): Promise<Blob> {
-  const form = new FormData();
-  form.append('file', file, 'document.pdf');
-  form.append('request', JSON.stringify({ pageIndex, delta }));
-  const response = await fetch(`${API_BASE}/api/pdf/rotate-page`, { method: 'POST', body: form });
-  if (!response.ok) throw new Error((await response.text()) || `PDF API error ${response.status}`);
-  return response.blob();
+  return (await postMultipart('/api/pdf/rotate-page', file, { pageIndex, delta })).blob();
 }
 
 export async function redact(file: Blob, pageIndex: number, rects: number[][]): Promise<Blob> {
-  const form = new FormData();
-  form.append('file', file, 'document.pdf');
-  form.append('request', JSON.stringify({ pageIndex, rects }));
-  const response = await fetch(`${API_BASE}/api/pdf/redact`, { method: 'POST', body: form });
-  if (!response.ok) throw new Error((await response.text()) || `PDF API error ${response.status}`);
-  return response.blob();
+  return (await postMultipart('/api/pdf/redact', file, { pageIndex, rects })).blob();
 }

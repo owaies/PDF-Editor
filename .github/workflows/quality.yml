@@ -25,3 +25,4 @@ jobs:
           python-version: '3.12'
       - run: pip install -r backend/requirements.txt
       - run: python -m compileall backend/app
+      - run: PYTHONPATH=backend pytest backend/tests -q

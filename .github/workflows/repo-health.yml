@@ -1,0 +1,38 @@
+name: Repository health
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        if: ${{ hashFiles('package.json') != '' }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Validate Node project
+        if: ${{ hashFiles('package.json') != '' }}
+        shell: bash
+        run: |
+          npm install --ignore-scripts
+          node -e "const p=require('./package.json'); const s=p.scripts||{}; if(s.lint) require('child_process').execFileSync('npm',['run','lint'],{stdio:'inherit'}); if(s.build) require('child_process').execFileSync('npm',['run','build'],{stdio:'inherit'});"
+
+      - name: Validate Python sources
+        if: ${{ hashFiles('**/*.py') != '' }}
+        shell: bash
+        run: python -m compileall -q .
+
+      - name: Validate PHP sources
+        if: ${{ hashFiles('**/*.php') != '' }}
+        shell: bash
+        run: find . -name '*.php' -not -path './vendor/*' -print0 | xargs -0 -n1 php -l

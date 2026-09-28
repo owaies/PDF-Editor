@@ -3,7 +3,7 @@ import json
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, Field, ValidationError, field_validator
 from .pdf_service import extract_text_spans, remove_pages, rotate_page, redact_page, replace_text_span
 from .text_replace import replace_text_spans
 
@@ -11,35 +11,42 @@ app = FastAPI(title="PDF Editor API", version="0.4.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 class PageRotation(BaseModel):
-    pageIndex: int
-    delta: int = 90
+    pageIndex: int = Field(ge=0)
+    delta: int = Field(default=90, ge=-360, le=360, multiple_of=90)
 
 class RedactionRequest(BaseModel):
-    pageIndex: int
-    rects: list[list[float]]
+    pageIndex: int = Field(ge=0)
+    rects: list[list[float]] = Field(min_length=1, max_length=200)
+
+    @field_validator("rects")
+    @classmethod
+    def validate_rects(cls, value):
+        if any(len(rect) != 4 for rect in value):
+            raise ValueError("Each redaction rectangle must contain exactly four coordinates")
+        return value
 
 class DeletePagesRequest(BaseModel):
-    pageIndexes: list[int]
+    pageIndexes: list[int] = Field(min_length=1, max_length=200)
 
 class TextReplacementRequest(BaseModel):
-    pageIndex: int
-    bbox: list[float]
-    text: str
-    font: str = ""
-    size: float = 11
-    color: int = 0
+    pageIndex: int = Field(ge=0)
+    bbox: list[float] = Field(min_length=4, max_length=4)
+    text: str = Field(max_length=5000)
+    font: str = Field(default="", max_length=200)
+    size: float = Field(default=11, gt=0, le=200)
+    color: int = Field(default=0, ge=0, le=0xFFFFFF)
 
 class TextReplacementEdit(BaseModel):
-    pageIndex: int
-    sourceBBox: list[float]
-    targetBBox: list[float] | None = None
-    text: str = ""
-    font: str = ""
-    size: float = 11
-    color: int = 0
+    pageIndex: int = Field(ge=0)
+    sourceBBox: list[float] = Field(min_length=4, max_length=4)
+    targetBBox: list[float] | None = Field(default=None, min_length=4, max_length=4)
+    text: str = Field(default="", max_length=5000)
+    font: str = Field(default="", max_length=200)
+    size: float = Field(default=11, gt=0, le=200)
+    color: int = Field(default=0, ge=0, le=0xFFFFFF)
 
 class BatchTextReplacementRequest(BaseModel):
-    edits: list[TextReplacementEdit]
+    edits: list[TextReplacementEdit] = Field(min_length=1, max_length=200)
 
 @app.get("/api/health")
 def health():

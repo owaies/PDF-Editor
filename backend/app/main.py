@@ -4,6 +4,7 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from pydantic import BaseModel, Field, ValidationError, field_validator
+import math
 from .pdf_service import extract_text_spans, remove_pages, rotate_page, redact_page, replace_text_span
 from .text_replace import replace_text_spans
 
@@ -28,6 +29,8 @@ class RedactionRequest(BaseModel):
     def validate_rects(cls, value):
         if any(len(rect) != 4 for rect in value):
             raise ValueError("Each redaction rectangle must contain exactly four coordinates")
+        if any(not all(math.isfinite(float(coord)) for coord in rect) for rect in value):
+            raise ValueError("Redaction coordinates must be finite numbers")
         return value
 
 class DeletePagesRequest(BaseModel):

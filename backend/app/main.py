@@ -8,7 +8,12 @@ from .pdf_service import extract_text_spans, remove_pages, rotate_page, redact_p
 from .text_replace import replace_text_spans
 
 app = FastAPI(title="PDF Editor API", version="0.4.0")
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type"],
+)
 
 class PageRotation(BaseModel):
     pageIndex: int = Field(ge=0)

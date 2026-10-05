@@ -44,6 +44,13 @@ class TextReplacementRequest(BaseModel):
     size: float = Field(default=11, gt=0, le=200)
     color: int = Field(default=0, ge=0, le=0xFFFFFF)
 
+    @field_validator("bbox")
+    @classmethod
+    def validate_bbox(cls, value):
+        if not all(math.isfinite(float(coord)) for coord in value):
+            raise ValueError("Text replacement coordinates must be finite numbers")
+        return value
+
 class TextReplacementEdit(BaseModel):
     pageIndex: int = Field(ge=0)
     sourceBBox: list[float] = Field(min_length=4, max_length=4)
@@ -52,6 +59,13 @@ class TextReplacementEdit(BaseModel):
     font: str = Field(default="", max_length=200)
     size: float = Field(default=11, gt=0, le=200)
     color: int = Field(default=0, ge=0, le=0xFFFFFF)
+
+    @field_validator("sourceBBox", "targetBBox")
+    @classmethod
+    def validate_bbox(cls, value):
+        if value is not None and not all(math.isfinite(float(coord)) for coord in value):
+            raise ValueError("Text replacement coordinates must be finite numbers")
+        return value
 
 class BatchTextReplacementRequest(BaseModel):
     edits: list[TextReplacementEdit] = Field(min_length=1, max_length=200)

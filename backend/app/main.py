@@ -77,11 +77,14 @@ def health():
 async def read_pdf(file: UploadFile) -> bytes:
     if not file.filename or not file.filename.lower().endswith(".pdf"):
         raise HTTPException(400, "Please upload a PDF file")
-    data = await file.read()
+    # Read at most one byte beyond the limit so oversized files are rejected
+    # without materializing the entire upload in application memory.
+    max_bytes = 100 * 1024 * 1024
+    data = await file.read(max_bytes + 1)
+    if len(data) > max_bytes:
+        raise HTTPException(413, "PDF is larger than the 100 MB local editing limit")
     if not data.startswith(b"%PDF"):
         raise HTTPException(400, "Invalid PDF file")
-    if len(data) > 100 * 1024 * 1024:
-        raise HTTPException(413, "PDF is larger than the 100 MB local editing limit")
     return data
 
 def parse_request(raw: str, model: type[BaseModel]) -> BaseModel:

@@ -1,0 +1,23 @@
+# JavaScript dependencies and build output
+node_modules/
+dist/
+.vite/
+
+# Local environment configuration
+.env
+.env.*
+!.env.example
+
+# Python backend and test artifacts
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage*
+htmlcov/
+
+# Local editor and OS files
+.vscode/
+.idea/
+.DS_Store

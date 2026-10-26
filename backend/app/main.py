@@ -33,6 +33,8 @@ class RedactionRequest(BaseModel):
             raise ValueError("Each redaction rectangle must contain exactly four coordinates")
         if any(not all(math.isfinite(float(coord)) for coord in rect) for rect in value):
             raise ValueError("Redaction coordinates must be finite numbers")
+        if any(rect[2] <= rect[0] or rect[3] <= rect[1] for rect in value):
+            raise ValueError("Each redaction rectangle must have positive width and height")
         return value
 
 class DeletePagesRequest(BaseModel):
@@ -51,6 +53,8 @@ class TextReplacementRequest(BaseModel):
     def validate_bbox(cls, value):
         if not all(math.isfinite(float(coord)) for coord in value):
             raise ValueError("Text replacement coordinates must be finite numbers")
+        if value[2] <= value[0] or value[3] <= value[1]:
+            raise ValueError("Text replacement rectangle must have positive width and height")
         return value
 
 class TextReplacementEdit(BaseModel):
@@ -67,6 +71,8 @@ class TextReplacementEdit(BaseModel):
     def validate_bbox(cls, value):
         if value is not None and not all(math.isfinite(float(coord)) for coord in value):
             raise ValueError("Text replacement coordinates must be finite numbers")
+        if value is not None and (value[2] <= value[0] or value[3] <= value[1]):
+            raise ValueError("Text replacement rectangle must have positive width and height")
         return value
 
 class BatchTextReplacementRequest(BaseModel):

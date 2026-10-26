@@ -1,4 +1,5 @@
 import json
+import logging
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -9,6 +10,7 @@ from .pdf_service import extract_text_spans, remove_pages, rotate_page, redact_p
 from .text_replace import replace_text_spans
 
 app = FastAPI(title="PDF Editor API", version="0.4.0")
+logger = logging.getLogger(__name__)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
@@ -98,8 +100,9 @@ async def text_spans(file: UploadFile = File(...)):
     data = await read_pdf(file)
     try:
         return {"spans": extract_text_spans(data)}
-    except Exception as exc:
-        raise HTTPException(422, f"Could not inspect PDF text: {exc}")
+    except Exception:
+        logger.exception("PDF text extraction failed")
+        raise HTTPException(422, "Could not inspect PDF text.") from None
 
 @app.post("/api/pdf/delete-pages")
 async def delete_pages(request: str = Form(...), file: UploadFile = File(...)):
@@ -108,8 +111,9 @@ async def delete_pages(request: str = Form(...), file: UploadFile = File(...)):
     try:
         out = remove_pages(data, parsed.pageIndexes)
         return Response(out, media_type="application/pdf")
-    except Exception as exc:
-        raise HTTPException(422, f"Could not delete pages: {exc}")
+    except Exception:
+        logger.exception("PDF page deletion failed")
+        raise HTTPException(422, "Could not delete PDF pages.") from None
 
 @app.post("/api/pdf/rotate-page")
 async def rotate(request: str = Form(...), file: UploadFile = File(...)):
@@ -118,8 +122,9 @@ async def rotate(request: str = Form(...), file: UploadFile = File(...)):
     try:
         out = rotate_page(data, parsed.pageIndex, parsed.delta)
         return Response(out, media_type="application/pdf")
-    except Exception as exc:
-        raise HTTPException(422, f"Could not rotate page: {exc}")
+    except Exception:
+        logger.exception("PDF page rotation failed")
+        raise HTTPException(422, "Could not rotate the PDF page.") from None
 
 @app.post("/api/pdf/redact")
 async def redact(request: str = Form(...), file: UploadFile = File(...)):
@@ -128,8 +133,9 @@ async def redact(request: str = Form(...), file: UploadFile = File(...)):
     try:
         out = redact_page(data, parsed.pageIndex, parsed.rects)
         return Response(out, media_type="application/pdf")
-    except Exception as exc:
-        raise HTTPException(422, f"Could not apply redaction: {exc}")
+    except Exception:
+        logger.exception("PDF redaction failed")
+        raise HTTPException(422, "Could not apply PDF redaction.") from None
 
 @app.post("/api/pdf/replace-text")
 async def replace_text(request: str = Form(...), file: UploadFile = File(...)):
@@ -140,8 +146,9 @@ async def replace_text(request: str = Form(...), file: UploadFile = File(...)):
         return Response(out, media_type="application/pdf")
     except ValueError as exc:
         raise HTTPException(400, str(exc))
-    except Exception as exc:
-        raise HTTPException(422, f"Could not replace text: {exc}")
+    except Exception:
+        logger.exception("PDF text replacement failed")
+        raise HTTPException(422, "Could not replace PDF text.") from None
 
 @app.post("/api/pdf/replace-text-spans")
 async def replace_text_batch(request: str = Form(...), file: UploadFile = File(...)):
@@ -156,5 +163,6 @@ async def replace_text_batch(request: str = Form(...), file: UploadFile = File(.
         return Response(out, media_type="application/pdf")
     except ValueError as exc:
         raise HTTPException(400, str(exc))
-    except Exception as exc:
-        raise HTTPException(422, f"Could not replace PDF text spans: {exc}")
+    except Exception:
+        logger.exception("PDF batch text replacement failed")
+        raise HTTPException(422, "Could not replace PDF text spans.") from None

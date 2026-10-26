@@ -3,7 +3,7 @@ import math
 import pytest
 from pydantic import ValidationError
 
-from backend.app.main import (
+from app.main import (
     PageRotation,
     RedactionRequest,
     TextReplacementEdit,

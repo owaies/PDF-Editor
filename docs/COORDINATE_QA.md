@@ -10,3 +10,9 @@ PDF editing keeps objects in document coordinates so zoom should not change thei
 5. Reopen it and compare the final placement.
 
 Repeat for text, highlight, shape, image, and drawing objects.
+
+## API rectangle validation
+- Submit redaction, single text-replacement, and batch text-replacement rectangles with reversed horizontal coordinates.
+- Submit rectangles with zero width or zero height.
+- Confirm the API rejects each invalid rectangle before modifying the PDF, while a rectangle with positive width and height remains accepted.
+

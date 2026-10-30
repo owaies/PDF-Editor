@@ -65,4 +65,4 @@ def test_batch_text_replacement_rejects_non_finite_bbox_coordinates(invalid_coor
 def test_page_deletion_rejects_negative_indexes(indexes):
     with pytest.raises(ValidationError):
         DeletePagesRequest(pageIndexes=indexes)
-\n
+

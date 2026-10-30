@@ -4,6 +4,7 @@ import pytest
 from pydantic import ValidationError
 
 from app.main import (
+    DeletePagesRequest,
     PageRotation,
     RedactionRequest,
     TextReplacementEdit,
@@ -59,3 +60,9 @@ def test_batch_text_replacement_rejects_non_finite_bbox_coordinates(invalid_coor
             sourceBBox=[10, 10, invalid_coordinate, 100],
             text="Updated",
         )
+
+@pytest.mark.parametrize("indexes", [[-1], [0, -1]])
+def test_page_deletion_rejects_negative_indexes(indexes):
+    with pytest.raises(ValidationError):
+        DeletePagesRequest(pageIndexes=indexes)
+\n

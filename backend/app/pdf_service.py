@@ -32,9 +32,13 @@ def extract_text_spans(data: bytes):
 
 def remove_pages(data: bytes, page_indexes: list[int]) -> bytes:
     doc = open_pdf(data)
-    valid = sorted({i for i in page_indexes if 0 <= i < len(doc)}, reverse=True)
-    for i in valid:
-        doc.delete_page(i)
+    if any(index < 0 or index >= len(doc) for index in page_indexes):
+        doc.close()
+        raise ValueError("Page index out of range")
+
+    valid = sorted(set(page_indexes), reverse=True)
+    for index in valid:
+        doc.delete_page(index)
     out = doc.tobytes(garbage=4, deflate=True)
     doc.close()
     return out

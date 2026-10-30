@@ -40,6 +40,13 @@ class RedactionRequest(BaseModel):
 class DeletePagesRequest(BaseModel):
     pageIndexes: list[int] = Field(min_length=1, max_length=200)
 
+    @field_validator("pageIndexes")
+    @classmethod
+    def validate_page_indexes(cls, value):
+        if any(index < 0 for index in value):
+            raise ValueError("Page indexes must be non-negative")
+        return value
+
 class TextReplacementRequest(BaseModel):
     pageIndex: int = Field(ge=0)
     bbox: list[float] = Field(min_length=4, max_length=4)
@@ -117,6 +124,8 @@ async def delete_pages(request: str = Form(...), file: UploadFile = File(...)):
     try:
         out = remove_pages(data, parsed.pageIndexes)
         return Response(out, media_type="application/pdf")
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
     except Exception:
         logger.exception("PDF page deletion failed")
         raise HTTPException(422, "Could not delete PDF pages.") from None

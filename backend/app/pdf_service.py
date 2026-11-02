@@ -7,67 +7,71 @@ def open_pdf(data: bytes) -> fitz.Document:
 
 def extract_text_spans(data: bytes):
     doc = open_pdf(data)
-    result = []
-    for page_index, page in enumerate(doc):
-        page_dict = page.get_text("dict")
-        for block_index, block in enumerate(page_dict.get("blocks", [])):
-            if block.get("type") != 0:
-                continue
-            for line_index, line in enumerate(block.get("lines", [])):
-                for span_index, span in enumerate(line.get("spans", [])):
-                    result.append({
-                        "id": f"p{page_index}-b{block_index}-l{line_index}-s{span_index}",
-                        "pageIndex": page_index,
-                        "text": span.get("text", ""),
-                        "bbox": list(span.get("bbox", (0, 0, 0, 0))),
-                        "font": span.get("font", ""),
-                        "size": span.get("size", 0),
-                        "color": span.get("color", 0),
-                        "flags": span.get("flags", 0),
-                        "origin": list(span.get("origin", (0, 0))),
-                    })
-    doc.close()
-    return result
+    try:
+        result = []
+        for page_index, page in enumerate(doc):
+            page_dict = page.get_text("dict")
+            for block_index, block in enumerate(page_dict.get("blocks", [])):
+                if block.get("type") != 0:
+                    continue
+                for line_index, line in enumerate(block.get("lines", [])):
+                    for span_index, span in enumerate(line.get("spans", [])):
+                        result.append({
+                            "id": f"p{page_index}-b{block_index}-l{line_index}-s{span_index}",
+                            "pageIndex": page_index,
+                            "text": span.get("text", ""),
+                            "bbox": list(span.get("bbox", (0, 0, 0, 0))),
+                            "font": span.get("font", ""),
+                            "size": span.get("size", 0),
+                            "color": span.get("color", 0),
+                            "flags": span.get("flags", 0),
+                            "origin": list(span.get("origin", (0, 0))),
+                        })
+        return result
+    finally:
+        doc.close()
 
 
 def remove_pages(data: bytes, page_indexes: list[int]) -> bytes:
     doc = open_pdf(data)
-    if any(index < 0 or index >= len(doc) for index in page_indexes):
-        doc.close()
-        raise ValueError("Page index out of range")
+    try:
+        if any(index < 0 or index >= len(doc) for index in page_indexes):
+            raise ValueError("Page index out of range")
 
-    valid = sorted(set(page_indexes), reverse=True)
-    for index in valid:
-        doc.delete_page(index)
-    out = doc.tobytes(garbage=4, deflate=True)
-    doc.close()
-    return out
+        valid = sorted(set(page_indexes), reverse=True)
+        for index in valid:
+            doc.delete_page(index)
+        return doc.tobytes(garbage=4, deflate=True)
+    finally:
+        doc.close()
 
 
 def rotate_page(data: bytes, page_index: int, delta: int) -> bytes:
     doc = open_pdf(data)
-    if not 0 <= page_index < len(doc):
-        raise ValueError("Page index out of range")
-    page = doc[page_index]
-    page.set_rotation((page.rotation + delta) % 360)
-    out = doc.tobytes(garbage=4, deflate=True)
-    doc.close()
-    return out
+    try:
+        if not 0 <= page_index < len(doc):
+            raise ValueError("Page index out of range")
+        page = doc[page_index]
+        page.set_rotation((page.rotation + delta) % 360)
+        return doc.tobytes(garbage=4, deflate=True)
+    finally:
+        doc.close()
 
 
 def redact_page(data: bytes, page_index: int, rects: list[list[float]]) -> bytes:
     doc = open_pdf(data)
-    if not 0 <= page_index < len(doc):
-        raise ValueError("Page index out of range")
-    page = doc[page_index]
-    for coords in rects:
-        if len(coords) != 4:
-            continue
-        page.add_redact_annot(fitz.Rect(*coords), fill=(1, 1, 1))
-    page.apply_redactions()
-    out = doc.tobytes(garbage=4, deflate=True)
-    doc.close()
-    return out
+    try:
+        if not 0 <= page_index < len(doc):
+            raise ValueError("Page index out of range")
+        page = doc[page_index]
+        for coords in rects:
+            if len(coords) != 4:
+                continue
+            page.add_redact_annot(fitz.Rect(*coords), fill=(1, 1, 1))
+        page.apply_redactions()
+        return doc.tobytes(garbage=4, deflate=True)
+    finally:
+        doc.close()
 
 
 def _font_for_name(name: str) -> str:
@@ -98,29 +102,28 @@ def replace_text_span(
     if len(bbox) != 4:
         raise ValueError("bbox must contain four coordinates")
     doc = open_pdf(data)
-    if not 0 <= page_index < len(doc):
+    try:
+        if not 0 <= page_index < len(doc):
+            raise ValueError("Page index out of range")
+        rect = fitz.Rect(*bbox)
+        if rect.is_empty or rect.width <= 0 or rect.height <= 0:
+            raise ValueError("Invalid text span rectangle")
+
+        page = doc[page_index]
+        page.add_redact_annot(rect, fill=None)
+        page.apply_redactions(images=0, graphics=0, text=0)
+
+        if text:
+            page.insert_textbox(
+                rect,
+                text,
+                fontname=_font_for_name(font),
+                fontsize=max(1, float(size)),
+                color=_rgb_from_int(int(color)),
+                align=fitz.TEXT_ALIGN_LEFT,
+                overlay=True,
+            )
+
+        return doc.tobytes(garbage=4, deflate=True)
+    finally:
         doc.close()
-        raise ValueError("Page index out of range")
-    rect = fitz.Rect(*bbox)
-    if rect.is_empty or rect.width <= 0 or rect.height <= 0:
-        doc.close()
-        raise ValueError("Invalid text span rectangle")
-
-    page = doc[page_index]
-    page.add_redact_annot(rect, fill=None)
-    page.apply_redactions(images=0, graphics=0, text=0)
-
-    if text:
-        page.insert_textbox(
-            rect,
-            text,
-            fontname=_font_for_name(font),
-            fontsize=max(1, float(size)),
-            color=_rgb_from_int(int(color)),
-            align=fitz.TEXT_ALIGN_LEFT,
-            overlay=True,
-        )
-
-    out = doc.tobytes(garbage=4, deflate=True)
-    doc.close()
-    return out

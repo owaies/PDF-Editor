@@ -41,6 +41,10 @@ uvicorn app.main:app --reload --port 8000
 
 Set `VITE_PDF_API_URL` if the service is not running at `http://localhost:8000`.
 
+## Backend resource lifecycle
+
+Each PyMuPDF document opened for an API operation is closed in a `finally` block, including when page indexes are invalid or a transformation raises an error. The focused regression tests verify cleanup after both successful extraction and rejected page operations.
+
 ## Security and privacy
 
 The frontend is local-first. No account is required. The backend has no persistence layer and processes the uploaded PDF only for the duration of a request. Deploying the backend publicly should add authentication, request limits, HTTPS, and stricter CORS before production use.

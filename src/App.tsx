@@ -33,9 +33,12 @@ export default function App() {
   const openFile = useCallback(async (file: File) => {
     if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) { setStatus('Please choose a PDF file.'); return; }
     try {
-      setStatus('Loading PDF…'); const bytes = new Uint8Array(await file.arrayBuffer()); (window as WindowPdf).__pdfBytes = bytes;
-      const loaded = await getDocument({ data: bytes }).promise, meta: PageState[] = [];
+      setStatus('Loading PDF…'); const bytes = new Uint8Array(await file.arrayBuffer());
+      // PDF.js transfers typed-array input to its worker. Give it a copy so the
+      // original bytes remain available for pdf-lib export on the main thread.
+      const loaded = await getDocument({ data: bytes.slice() }).promise, meta: PageState[] = [];
       for (let i = 0; i < loaded.numPages; i++) { const p = await loaded.getPage(i + 1), v = p.getViewport({ scale: 1 }); meta.push({ index: i, width: v.width, height: v.height, rotation: p.rotate }); }
+      (window as WindowPdf).__pdfBytes = bytes;
       setPdf(loaded); setPages(meta); setFileName(file.name); setCurrentPage(0); setZoom(1); setTextSpans([]); setBackendReady(false); useEditor.getState().clearHistory(); useEditor.getState().select(null);
       try { const spans = await inspectTextSpans(file); setTextSpans(spans); setBackendReady(true); setStatus(`${loaded.numPages} page${loaded.numPages === 1 ? '' : 's'} loaded · high-fidelity text editing ready`); }
       catch (e) { console.warn('Structural text backend unavailable, using PDF.js text extraction.', e); const spans = await extractLocalTextSpans(loaded, meta); setTextSpans(spans); setBackendReady(false); setStatus(`${loaded.numPages} page${loaded.numPages === 1 ? '' : 's'} loaded · text selection ready · local engine unavailable`); }

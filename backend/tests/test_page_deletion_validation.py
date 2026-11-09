@@ -26,3 +26,14 @@ def test_remove_pages_deduplicates_valid_indexes():
         assert len(document) == 1
     finally:
         document.close()
+
+
+
+def test_remove_pages_rejects_deleting_every_page():
+    with pytest.raises(ValueError, match="retain at least one page"):
+        remove_pages(_two_page_pdf(), [0, 1])
+
+
+def test_remove_pages_rejects_all_pages_even_when_indexes_repeat():
+    with pytest.raises(ValueError, match="retain at least one page"):
+        remove_pages(_two_page_pdf(), [0, 1, 1])

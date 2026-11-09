@@ -39,6 +39,9 @@ def remove_pages(data: bytes, page_indexes: list[int]) -> bytes:
             raise ValueError("Page index out of range")
 
         valid = sorted(set(page_indexes), reverse=True)
+        if len(valid) >= len(doc):
+            raise ValueError("A PDF must retain at least one page")
+
         for index in valid:
             doc.delete_page(index)
         return doc.tobytes(garbage=4, deflate=True)

@@ -92,6 +92,39 @@ def _rgb_from_int(value: int) -> tuple[float, float, float]:
     return ((value >> 16 & 255) / 255, (value >> 8 & 255) / 255, (value & 255) / 255)
 
 
+def _insert_fitted_text(
+    page: fitz.Page,
+    rect: fitz.Rect,
+    text: str,
+    fontname: str,
+    size: float,
+    color: tuple[float, float, float],
+) -> None:
+    """Insert replacement text only when it fits inside the selected rectangle."""
+    if not text:
+        return
+
+    font_size = max(1.0, float(size))
+    minimum_size = min(5.0, font_size)
+    while True:
+        remaining = page.insert_textbox(
+            rect,
+            text,
+            fontname=fontname,
+            fontsize=font_size,
+            color=color,
+            align=fitz.TEXT_ALIGN_LEFT,
+            overlay=True,
+        )
+        if remaining >= 0:
+            return
+        if font_size <= minimum_size:
+            break
+        font_size = max(minimum_size, font_size * 0.92)
+
+    raise ValueError("Replacement text does not fit inside the selected PDF text box")
+
+
 def replace_text_span(
     data: bytes,
     page_index: int,
@@ -116,16 +149,14 @@ def replace_text_span(
         page.add_redact_annot(rect, fill=None)
         page.apply_redactions(images=0, graphics=0, text=0)
 
-        if text:
-            page.insert_textbox(
-                rect,
-                text,
-                fontname=_font_for_name(font),
-                fontsize=max(1, float(size)),
-                color=_rgb_from_int(int(color)),
-                align=fitz.TEXT_ALIGN_LEFT,
-                overlay=True,
-            )
+        _insert_fitted_text(
+            page,
+            rect,
+            text,
+            _font_for_name(font),
+            size,
+            _rgb_from_int(color),
+        )
 
         return doc.tobytes(garbage=4, deflate=True)
     finally:

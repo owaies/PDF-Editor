@@ -7,7 +7,7 @@ Test the editor across these operations:
 - Add text, highlights, rectangles, and images.
 - Move, resize, rotate, then undo and redo edits.
 - Replace existing text and verify it remains selectable when the source PDF supports it.
+- For single-span replacement, verify longer text is reduced to a readable size when possible and rejected with HTTP 400 when it cannot fit inside the selected rectangle.
+- For batch replacement, test short replacements, longer text that needs fitting, and PDFs with embedded fonts.
 - Export and reopen the result in an independent PDF viewer.
 - After opening a valid PDF, attempt to open a malformed PDF and confirm the previously opened document can still be exported correctly.
-
-For text replacement, test short replacements, longer text that needs fitting, and PDFs with embedded fonts.
